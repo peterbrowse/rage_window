@@ -17,15 +17,27 @@
  * 1-7 | 2-7 | 3-7 | 4-7
  * 1-8 | 2-8 | 3-8 | 4-8
  * 
+ * Screen
+ * 
+ * RS (4) -> 22 / 12 (on diagram)
+ * E (6) -> 23 / 11 (on diagram)
+ * D4 (11) -> 24 / 5 (on diagram)
+ * D5 (12) -> 25 / 4 (on diagram)
+ * D6 (13) -> 26 / 3 (on diagram)
+ * D7 (14) -> 27 / 2 (on diagram)
+ * 
  */
 
 #include <Keypad.h>
+#include <LiquidCrystal.h>
 #include "Arduino.h"
 #include <EDB.h>
 #include <EEPROM.h>
 
 #define TABLE_SIZE 512
 #define RECORDS_TO_CREATE 9
+
+LiquidCrystal lcd(22, 23, 24, 25, 26, 27);
 
 struct itemSelect {
   char id[3];
@@ -63,12 +75,13 @@ byte rowPins[ROWS] = {2, 3, 4, 5};
 byte colPins[COLS] = {6, 7, 8, 9};
 
 char *messages[]={
-  "Welcome please make a selection.",
-  "Press '*' to confirm & '#' to cancel.",
+  "Pick a plate...",
+  "Press '*' to confirm.",
   "Cancelled...",
-  "Thank you. Have a great day.",
-  "Sold out. Please make another selection.",
-  "Invalid selection. Please select again."
+  "Have a great day.",
+  "Sold out.",
+  "Not available.",
+  "Press '#' to cancel."
 };
 
 String selection;
@@ -77,7 +90,9 @@ Keypad customKeypad = Keypad( makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS
 
 void setup() {
   Serial.begin(9600);
+  lcd.begin(16, 2);
   Serial.print("Activating Rage Vending Machine...");
+  lcd.print("Starting Rage...");
   Serial.println();
 
   db.create(0, TABLE_SIZE, sizeof(itemSelect));
@@ -135,12 +150,20 @@ void setup() {
   itemSelect.pin = 7;
   itemSelect.active = true;
   db.appendRec(EDB_REC itemSelect);
-  
+
+  delay(2000);
   Serial.print("Item Count: ");
   Serial.println(db.count());
+  lcd.clear();
+  lcd.print("Plates: " + String(db.count()));
+  delay(2000);
+  lcd.clear();
+  lcd.print(messages[0]);
 }
 
 void loop() {
+
+  
   char key = customKeypad.getKey();
 
   if(key) {
@@ -155,23 +178,34 @@ void loop() {
           if(activated) {
             selection = {""};
             Serial.println(messages[3]);
+            lcd.clear();
+            lcd.print(messages[3]);
           } else {
             selection = {""};
             Serial.println(messages[4]);
+            lcd.clear();
+            lcd.print(messages[4]);
           }
         } else {
           selection = {""};
           Serial.println(messages[5]);
+          lcd.clear();
+          lcd.print(messages[5]);
         }
         break;
       case '#':
         selection = {""};
         Serial.println(messages[2]);
+        lcd.clear();
+        lcd.print(messages[2]);
         break;
       default:
         String theKey = String(key);
         selection = selection + theKey;
         Serial.println(selection);
+        lcd.clear();
+        lcd.setCursor(0, 1);
+        lcd.print(selection);
     } 
   }
 }
