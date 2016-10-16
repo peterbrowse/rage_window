@@ -36,7 +36,7 @@
 #include "TimerObject.h"
 
 #define TABLE_SIZE 512
-#define RECORDS_TO_CREATE 9
+#define RECORDS_TO_CREATE 6
 
 boolean coin_active = false;
 
@@ -74,8 +74,8 @@ char hexaKeys[ROWS][COLS] = {
   {'*', '0', '#', 'D'}  
 };
 
-byte rowPins[ROWS] = {2, 3, 4, 5};
-byte colPins[COLS] = {6, 7, 8, 9};
+byte rowPins[ROWS] = {3, 4, 5, 6};
+byte colPins[COLS] = {7, 8, 9, 10};
 
 char *messages[]={
   "Pick a plate...",
@@ -87,7 +87,9 @@ char *messages[]={
   "'#' to cancel.",
   "Insert coins to",
   "Welcome",
-  "rage. Enjoy..."
+  "rage. Enjoy...",
+  "Thank you for",
+  "your donation."
 };
 
 String selection;
@@ -126,8 +128,13 @@ void stopTimers() {
   timerStartCoinMessage->Stop();
 }
 
+const int coinInt = 0; 
+volatile float coinsValue = 0.00;
+int coinsChange = 0;
+String coinsMessage = "";                  
+
 void setup() {
-  coin_active = true;
+  //coin_active = true;
   
   Serial.begin(9600);
   
@@ -136,77 +143,56 @@ void setup() {
   lcd.print("Starting Rage...");
   Serial.println();
 
+  //pinMode(coin_signal_pin, INPUT);
+  attachInterrupt(coinInt, coinInserted, RISING);   
+
   db.create(0, TABLE_SIZE, sizeof(itemSelect));
 
   //A1
   sprintf(itemSelect.id, "A1", i++);
   itemSelect.pin = 30;
-  digitalWrite(itemSelect.pin, 0);
-  pinMode(itemSelect.pin, OUTPUT); 
+  pinMode(itemSelect.pin, OUTPUT);
+  digitalWrite(itemSelect.pin, 1); 
   itemSelect.active = true;
   db.appendRec(EDB_REC itemSelect);
 
   //A2
   sprintf(itemSelect.id, "A2", i++);
   itemSelect.pin = 31;
-  digitalWrite(itemSelect.pin, 0);
-  pinMode(itemSelect.pin, OUTPUT); 
+  pinMode(itemSelect.pin, OUTPUT);
+  digitalWrite(itemSelect.pin, 1); 
   itemSelect.active = true;
   db.appendRec(EDB_REC itemSelect);
 
   //A3
   sprintf(itemSelect.id, "A3", i++); 
   itemSelect.pin = 32;
-  digitalWrite(itemSelect.pin, 0);
-  pinMode(itemSelect.pin, OUTPUT); 
+  pinMode(itemSelect.pin, OUTPUT);
+  digitalWrite(itemSelect.pin, 1); 
   itemSelect.active = true;
   db.appendRec(EDB_REC itemSelect);
 
-  //B1
-  sprintf(itemSelect.id, "B1", i++); 
+  //A4
+  sprintf(itemSelect.id, "A4", i++); 
   itemSelect.pin = 33;
-  digitalWrite(itemSelect.pin, 0);
-  pinMode(itemSelect.pin, OUTPUT); 
+  pinMode(itemSelect.pin, OUTPUT);
+  digitalWrite(itemSelect.pin, 1); 
   itemSelect.active = true;
   db.appendRec(EDB_REC itemSelect);
 
-  //B2
-  sprintf(itemSelect.id, "B2", i++); 
+  //A5
+  sprintf(itemSelect.id, "A5", i++); 
   itemSelect.pin = 34;
-  digitalWrite(itemSelect.pin, 0);
-  pinMode(itemSelect.pin, OUTPUT); 
+  pinMode(itemSelect.pin, OUTPUT);
+  digitalWrite(itemSelect.pin, 1); 
   itemSelect.active = true;
   db.appendRec(EDB_REC itemSelect);
 
-  //B3
-  sprintf(itemSelect.id, "B3", i++); 
+  //A6
+  sprintf(itemSelect.id, "A6", i++); 
   itemSelect.pin = 35;
-  digitalWrite(itemSelect.pin, 0);
   pinMode(itemSelect.pin, OUTPUT); 
-  itemSelect.active = true;
-  db.appendRec(EDB_REC itemSelect);
-
-  //C1
-  sprintf(itemSelect.id, "C1", i++); 
-  itemSelect.pin = 36;
-  digitalWrite(itemSelect.pin, 0);
-  pinMode(itemSelect.pin, OUTPUT); 
-  itemSelect.active = true;
-  db.appendRec(EDB_REC itemSelect);
-
-  //C2
-  sprintf(itemSelect.id, "C2", i++); 
-  itemSelect.pin = 37;
-  digitalWrite(itemSelect.pin, 0);
-  pinMode(itemSelect.pin, OUTPUT); 
-  itemSelect.active = true;
-  db.appendRec(EDB_REC itemSelect);
-
-  //C3
-  sprintf(itemSelect.id, "C3", i++);  
-  itemSelect.pin = 38;
-  digitalWrite(itemSelect.pin, 0);
-  pinMode(itemSelect.pin, OUTPUT); 
+  digitalWrite(itemSelect.pin, 1);
   itemSelect.active = true;
   db.appendRec(EDB_REC itemSelect);
 
@@ -223,6 +209,35 @@ void setup() {
 void loop() {
   
 char key = customKeypad.getKey();
+
+//coin_signal_value = digitalRead(coin_signal_pin);
+//
+//if(coin_signal_value) {
+//  Serial.print("Coin Signal: ");
+//  Serial.println(coin_signal_value); 
+//}
+
+  if(coinsChange == 1 && coin_active == false) {
+    coinsChange = 0;
+    stopTimers();
+    coinsMessage = String(coinsValue, 2) + " inserted.";
+
+    Serial.println(coinsMessage);
+    lcd.clear();
+    lcd.setCursor(0, 1);
+    lcd.print(coinsMessage);
+    
+    if(coinsValue >= 1) {
+      coin_active = true;
+      coinsValue = 0.00;
+      Serial.print(messages[10]);
+      Serial.print(" ");
+      Serial.println(messages[11]);
+      WriteMessage(messages[10], messages[11]);
+      timerCancelled->Start();
+      timerWelcome->Start();
+    }    
+  }
 
   if(key) {
     if(coin_active) {
@@ -281,6 +296,11 @@ char key = customKeypad.getKey();
    }
 
    updateTimers();
+}
+
+void coinInserted() {
+  coinsValue = coinsValue + 0.05;
+  coinsChange = 1;
 }
 
 void StartIntro() {
@@ -398,7 +418,9 @@ void release_hammer() {
     EDB_Status result = db.readRec(plates, EDB_REC itemSelect);
     if (result == EDB_OK) {
       if(String(itemSelect.id) == selection) {
-        digitalWrite(itemSelect.pin, HIGH);
+        digitalWrite(itemSelect.pin, 0);
+        delay(200);
+        digitalWrite(itemSelect.pin, 1);
         Serial.println(itemSelect.pin);
       }
     } else printError(result);
