@@ -3,7 +3,7 @@
  * 
  * Arudino sketch to control the rage window vending machine.
  * 
- * v0.1.0
+ * v0.2.0
  * 
  * Keypad
  * 
@@ -38,7 +38,6 @@
 #define TABLE_SIZE 512
 #define RECORDS_TO_CREATE 6
 
-boolean coin_active = false;
 boolean sold_out = false;
 
 LiquidCrystal lcd(22, 23, 24, 25, 26, 27);
@@ -67,6 +66,7 @@ EDB db(&writer, &reader);
 const byte ROWS = 4;
 const byte COLS = 4;
 unsigned int i = 0;
+const int screenPower = 36;
 
 char hexaKeys[ROWS][COLS] = {
   {'1', '2', '3', 'A'},
@@ -130,31 +130,21 @@ void stopTimers() {
   timerStartCoinMessage->Stop();
 }
 
-const int coinInt = 0; 
-volatile float coinsValue = 0.00;
-int coinsChange = 0;
 int hammer_falls = 0;
-int hammer_falls_maximum = 6;
-String coinsMessage = "";
-const int coinPowerPin = 36;
-boolean accept_coins = false;                 
+int hammer_falls_maximum = 6;                
 
 void setup() {
-  //coin_active = true;
-  
   Serial.begin(9600);
+
+  pinMode(screenPower, OUTPUT);
+  digitalWrite(screenPower, 0);
+
+  delay(1500);
   
   lcd.begin(16, 2);
   Serial.print("Activating Rage Vending Machine...");
   lcd.print("Starting Rage...");
   Serial.println();
-
-  //pinMode(coin_signal_pin, INPUT);
-  attachInterrupt(coinInt, coinCount, RISING);
-
-  //Coin counter power
-  pinMode(coinPowerPin, OUTPUT);
-  digitalWrite(coinPowerPin, 0);
 
   db.create(0, TABLE_SIZE, sizeof(itemSelect));
 
@@ -213,34 +203,15 @@ void setup() {
   lcd.print("Items: " + String(db.count()));
   delay(2000);
   lcd.clear();
-  StartIntro();
+  PrintCoinInserted();
   delay(1000);
-  accept_coins = true;
 }
 
 void loop() {
   
   char key = customKeypad.getKey();
 
-  if(coinsChange == 1 && coin_active == false && accept_coins == true) {
-    coinsChange = 0;
-    
-    if(coinsValue >= 1) {
-      stopTimers();
-      coin_active = true;
-      coinsValue = 0.00;
-      Serial.print(messages[10]);
-      Serial.print(" ");
-      Serial.println(messages[11]);
-      WriteMessage(messages[10], messages[11]);
-      timerCancelled->Start();
-      timerWelcome->Start();
-      digitalWrite(coinPowerPin, 1);
-    }    
-  }
-
   if(key) {
-    if(coin_active) {
     switch (key) {
       case '*':
         stopTimers();
@@ -250,31 +221,24 @@ void loop() {
         if (result) {
           activated = smash_plate();
           if(activated) {
-            selection = {""};
-            accept_coins = false;
-            Serial.println(messages[3]);
-            WriteMessage(messages[3], messages[9]);
-            delay(600);
-            //Turn off screen
-            lcd.noDisplay();
             release_hammer();
+            selection = {""};
+            delay(500);
+            digitalWrite(screenPower, 1);
+            delay(200);
             if(sold_out == false) {
-              //Fire Solenoid
-              digitalWrite(coinPowerPin, 0);
-              //Turn on screen
-              lcd.display();
+              digitalWrite(screenPower, 0);
               delay(2000);
-              StartIntro();
+              lcd.begin(16, 2);
+              PrintCoinInserted();
             } else {
-              delay(600);
-              //Turn on screen
-              lcd.display();
+              stopTimers();
+              digitalWrite(screenPower, 0);
+              delay(500);
+              lcd.begin(16, 2);
               WriteMessage(messages[12], "");
               Serial.println(messages[12]);
             }
-            coin_active = false;
-            delay(1000);
-            accept_coins = true;
           } else {
             selection = {""};
             Serial.println(messages[4]);
@@ -307,25 +271,14 @@ void loop() {
         lcd.setCursor(0, 1);
         lcd.print(selection);
       }
-    } else {
-      stopTimers();
-      StartIntro();
-    }
    }
 
    updateTimers();
 }
 
-void coinCount() {
-  if(accept_coins && sold_out == false) {
-    coinsValue = coinsValue + 0.05;
-    coinsChange = 1;
-  }
-}
-
 void StartIntro() {
   WriteMessage(messages[7], messages[0]);
-  timerStartIntro->Start();
+  timerWelcome->Start();
 }
 
 void PrintStartIntro() {
@@ -383,12 +336,6 @@ void WriteMessage(String message_line_one, String message_line_two) {
     lcd.setCursor(0,1);
     lcd.print(message_line_two);
   }
-}
-
-void CoinInserted () {
-  stopTimers();
-  PrintCoinInserted();
-  coin_active = true;
 }
 
 char* string2char(String command){
@@ -452,10 +399,6 @@ void release_hammer() {
       }
     } else printError(result);
   }
-}
-
-void CoinTimeout() {
-  coinsValue = 0.00;
 }
 
 void printError(EDB_Status err) {
